@@ -1,0 +1,44 @@
+{
+    "name": "ragnarok",
+    "version": "1.0.0",
+    "description": "Universal document analysis chatbot powered by AI",
+    "main": "index.js",
+    "scripts": {
+      "dev": "concurrently \"npm run backend:dev\" \"npm run frontend:dev\"",
+      "start": "npm run backend:start",
+      "backend:dev": "cd backend && npm run dev",
+      "backend:start": "cd backend && npm start",
+      "frontend:dev": "cd frontend && npm run dev",
+      "frontend:build": "cd frontend && npm run build",
+      "test": "npm run backend:test && npm run frontend:test",
+      "backend:test": "cd backend && npm test",
+      "frontend:test": "cd frontend && npm test",
+      "install:all": "npm run install:backend && npm run install:frontend",
+      "install:backend": "cd backend && npm install",
+      "install:frontend": "cd frontend && npm install",
+      "deploy:backend": "cd backend && gcloud app deploy",
+      "deploy:frontend": "cd frontend && npm run build && firebase deploy",
+      "deploy": "npm run deploy:backend && npm run deploy:frontend"
+    },
+    "devDependencies": {
+      "concurrently": "^8.2.0"
+    },
+    "keywords": [
+      "document-analysis",
+      "ai",
+      "chatbot",
+      "gemini",
+      "google-cloud",
+      "file-processing"
+    ],
+    "author": "Your Name",
+    "license": "MIT",
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/yourusername/ragnarok.git"
+    },
+    "engines": {
+      "node": ">=18.0.0",
+      "npm": ">=8.0.0"
+    }
+  }
