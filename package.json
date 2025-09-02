@@ -31,11 +31,11 @@
       "google-cloud",
       "file-processing"
     ],
-    "author": "Your Name",
+    "author": "Jonathan Yen",
     "license": "MIT",
     "repository": {
       "type": "git",
-      "url": "https://github.com/yourusername/ragnarok.git"
+      "url": "https://github.com/jonyen/ragnarok.git"
     },
     "engines": {
       "node": ">=18.0.0",
