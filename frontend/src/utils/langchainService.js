@@ -77,59 +77,76 @@ function initializeLLM() {
 }
 
 /**
- * Create a document Q&A chain using LangChain
+ * Create a RAG chain using LangChain (similar to resumebot pattern)
  * @param {Array<Object>} relevantChunks - Array of relevant document chunks
- * @returns {Object} - LangChain runnable chain
+ * @returns {Object} - LangChain RAG chain
  */
-function createDocumentQAChain(relevantChunks) {
+function createRAGChain(relevantChunks) {
   const llm = initializeLLM();
   
-  // Create context from relevant chunks
-  const context = relevantChunks
-    .map((chunk, index) => `[Document ${index + 1}: ${chunk.document.metadata.name}]\n${chunk.text}`)
-    .join('\n\n---\n\n');
+  const ragPrompt = PromptTemplate.fromTemplate(`
+You are Ragnarok, an AI assistant that can answer questions using both your general knowledge and provided document context.
 
-  const qaPrompt = PromptTemplate.fromTemplate(`
-You are a helpful AI assistant that answers questions based on provided document context. 
-Use only the information provided in the context to answer questions. 
-If the answer cannot be found in the context, say so clearly.
-Be concise but thorough in your responses.
+Today's date: {date}
 
-Context:
+Context from uploaded documents:
 {context}
 
-Question: {question}
+Question: {input}
+
+Please provide a helpful answer based on both your general knowledge and the document context above. If the question can be answered using the document context, prioritize that information. If not, use your general knowledge to provide a useful response.
 
 Answer:`);
 
   const outputParser = new StringOutputParser();
   
-  const chain = RunnableSequence.from([
-    qaPrompt,
+  // Create the RAG chain similar to resumebot pattern
+  const ragChain = RunnableSequence.from([
+    // Step 1: Prepare context from retrieved documents
+    {
+      context: () => {
+        if (relevantChunks && relevantChunks.length > 0) {
+          return relevantChunks
+            .map((chunk, index) => `[${chunk.document.metadata.name}]\n${chunk.text}`)
+            .join('\n\n---\n\n');
+        }
+        return "No relevant documents found.";
+      },
+      date: () => new Date().toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      }),
+      input: (input) => input.input || input
+    },
+    // Step 2: Apply prompt template
+    ragPrompt,
+    // Step 3: Generate response with LLM
     llm,
+    // Step 4: Parse output
     outputParser,
   ]);
 
-  return { chain, context };
+  return ragChain;
 }
 
 /**
- * Answer questions based on document context using LangChain
+ * Answer questions using RAG chain (similar to resumebot pattern)
  * @param {string} question - User's question
  * @param {Array<Object>} relevantChunks - Relevant document chunks
  * @returns {Promise<string>} - Answer based on context
  */
 export async function answerWithLangChain(question, relevantChunks) {
   try {
-    if (!question || !relevantChunks || relevantChunks.length === 0) {
-      throw new Error('Question and relevant chunks are required');
+    if (!question || question.trim().length === 0) {
+      throw new Error('Question cannot be empty');
     }
 
-    const { chain, context } = createDocumentQAChain(relevantChunks);
+    const ragChain = createRAGChain(relevantChunks);
     
-    const result = await chain.invoke({
-      context: context,
-      question: question,
+    const result = await ragChain.invoke({
+      input: question,
     });
 
     return result;

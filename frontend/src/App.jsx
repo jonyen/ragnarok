@@ -122,96 +122,89 @@ function App() {
     try {
       const providerInfo = getEmbeddingProviderInfo();
       const userInputLower = userInput.toLowerCase();
+      const stats = vectorStore.getStats();
       
       // Handle basic general questions first (no document context needed)
       if (userInputLower.includes('what day') || userInputLower.includes('what date') || userInputLower.includes('today')) {
         const today = new Date();
         const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-        return `Today is ${today.toLocaleDateString('en-US', options)}.`;
+        let response = `Today is ${today.toLocaleDateString('en-US', options)}.`;
+        
+        // Add document context if available
+        if (stats.totalDocuments > 0) {
+          response += `\n\nI also have access to ${stats.totalDocuments} document(s) if you'd like to ask about them.`;
+        }
+        return response;
       }
       
       if (userInputLower.includes('time') || userInputLower.includes('what time')) {
         const now = new Date();
-        return `The current time is ${now.toLocaleTimeString()}.`;
-      }
-      
-      if (userInputLower.includes('weather')) {
-        return "I don't have access to current weather data. Try asking about your uploaded documents instead!";
-      }
-      
-      if (userInputLower.includes('hello') || userInputLower.includes('hi ') || userInputLower === 'hi') {
-        return "Hello! I'm Ragnarok, your AI document analysis assistant. Upload some files and I'll help you analyze them, or ask me general questions!";
-      }
-      
-      if (userInputLower.includes('how are you')) {
-        return "I'm doing great! I'm here to help you analyze documents and answer questions. How can I assist you today?";
-      }
-      
-      if (userInputLower.includes('help') || userInputLower.includes('what can you do')) {
-        const stats = vectorStore.getStats();
-        let response = `I can help you with:\n\n🤖 **General Questions**: Ask me about dates, time, or general topics\n📄 **Document Analysis**: Upload files for AI-powered analysis\n\n`;
+        let response = `The current time is ${now.toLocaleTimeString()}.`;
         
+        // Add document context if available
         if (stats.totalDocuments > 0) {
-          response += `📋 I currently have access to ${stats.totalDocuments} document(s) with ${stats.totalChunks} searchable chunks.\n\n`;
+          response += `\n\nI also have access to ${stats.totalDocuments} document(s) if you'd like to ask about them.`;
         }
-        
-        response += `**Supported file types**: PDF, TXT, CSV, JSON, JS, HTML, MD\n🔧 **AI Models**: Using ${providerInfo.provider} embeddings`;
-        
         return response;
       }
       
-      // Handle basic math or calculations
-      if (userInputLower.includes('calculate') || userInputLower.includes('what is') && (userInputLower.includes('+') || userInputLower.includes('-') || userInputLower.includes('*') || userInputLower.includes('/'))) {
-        return "I can't perform calculations right now. Try asking about your uploaded documents or general questions like dates and time!";
-      }
-      
-      // Handle personal questions
-      if (userInputLower.includes('who are you') || userInputLower.includes('what are you')) {
-        return "I'm Ragnarok, an AI document analysis assistant. I can help you analyze uploaded documents using vector embeddings and answer general questions!";
-      }
-      
-      // Check if we have any processed documents for document-specific queries
-      const stats = vectorStore.getStats();
-      if (stats.totalDocuments === 0) {
-        return "I don't have any documents to search yet. Please upload some files above, or ask me general questions like 'what day is today?'";
-      }
-
-      // Perform semantic search on uploaded documents
-      const results = await vectorStore.search(userInput, 3);
-      
-      if (results.length === 0) {
-        // Check if this might be a general question that doesn't require documents
-        if (userInputLower.includes('explain') || userInputLower.includes('what is') || userInputLower.includes('how to') || userInputLower.includes('define')) {
-          return `I couldn't find relevant information in your uploaded documents about "${userInput}". For general knowledge questions, I'm limited to basic queries about dates and time. Try asking about specific content from your uploaded files!`;
+      if (userInputLower.includes('hello') || userInputLower.includes('hi ') || userInputLower === 'hi') {
+        let response = "Hello! I'm Ragnarok, your AI document analysis assistant.";
+        
+        if (stats.totalDocuments > 0) {
+          response += ` I have access to ${stats.totalDocuments} document(s) and can help you analyze them, or answer general questions!`;
+        } else {
+          response += " Upload some files and I'll help you analyze them, or ask me general questions!";
         }
-        return `I searched through your ${stats.totalDocuments} document(s) but couldn't find relevant information about "${userInput}". Try rephrasing your question or ask about different topics covered in your files.`;
+        return response;
       }
 
-      // Use LangChain for enhanced context-aware answering
+      // For all other questions, try to use LangChain with document context
+      let documentResults = [];
+      if (stats.totalDocuments > 0) {
+        try {
+          documentResults = await vectorStore.search(userInput, 3);
+        } catch (searchError) {
+          console.warn('Document search failed:', searchError);
+        }
+      }
+
+      // Use RAG chain for enhanced context-aware answering
       const langchainInfo = getLangChainProviderInfo();
       if (langchainInfo.configured || (providerInfo.provider === 'openai' && providerInfo.configured)) {
         try {
-          const answer = await answerWithContext(userInput, results);
+          const answer = await answerWithContext(userInput, documentResults);
           const llmProvider = langchainInfo.configured ? `LangChain (${langchainInfo.provider})` : 'OpenAI';
-          return `${answer}\n\n🤖 *Powered by ${llmProvider} • Found ${results.length} relevant sections*`;
+          
+          let response = answer;
+          if (documentResults.length > 0) {
+            response += `\n\n🤖 *Powered by ${llmProvider} • Found ${documentResults.length} relevant document sections*`;
+          } else {
+            response += `\n\n🤖 *Powered by ${llmProvider} • General knowledge response*`;
+          }
+          return response;
         } catch (error) {
           console.warn('LLM context answering failed, falling back to basic search:', error.message);
         }
       }
 
-      // Fallback: Return search results
-      let response = `Here's what I found in your documents:\n\n`;
-      results.forEach((result, index) => {
-        response += `**${result.document.metadata.name}** (similarity: ${(result.similarity * 100).toFixed(1)}%)\n`;
-        response += `${result.text.substring(0, 200)}...\n\n`;
-      });
-      
-      response += `💡 *Searched ${stats.totalChunks} text chunks using ${providerInfo.provider} embeddings*`;
-      return response;
+      // Fallback: Return document search results or general response
+      if (documentResults.length > 0) {
+        let response = `Here's what I found in your documents:\n\n`;
+        documentResults.forEach((result, index) => {
+          response += `**${result.document.metadata.name}** (similarity: ${(result.similarity * 100).toFixed(1)}%)\n`;
+          response += `${result.text.substring(0, 200)}...\n\n`;
+        });
+        response += `💡 *Using Hugging Face embeddings for semantic document search*`;
+        return response;
+      } else {
+        // No documents available - provide general response
+        return `I don't have specific information about "${userInput}" in my knowledge base, and no documents are currently uploaded. You can:\n\n• Upload documents for me to analyze\n• Ask general questions like dates, time, or greetings\n• Ask me about document analysis capabilities`;
+      }
       
     } catch (error) {
       console.error('Chat error:', error);
-      return `Sorry, I encountered an error while searching your documents: ${error.message}. Please try again or rephrase your question.`;
+      return `Sorry, I encountered an error while processing your question: ${error.message}. Please try again.`;
     }
   };
 

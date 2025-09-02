@@ -240,31 +240,39 @@ export function getEmbeddingProviderInfo() {
  */
 export async function answerWithContext(question, relevantChunks) {
   try {
-    if (!question || !relevantChunks || relevantChunks.length === 0) {
-      throw new Error('Question and relevant chunks are required');
+    if (!question || question.trim().length === 0) {
+      throw new Error('Question is required');
     }
+
+    // relevantChunks can be empty - LangChain can still answer general questions
+    const chunks = relevantChunks || [];
 
     // Try LangChain first if available
     try {
       const { answerWithLangChain, isLangChainConfigured } = await import('./langchainService.js');
       if (isLangChainConfigured()) {
         console.log('Using LangChain for Q&A');
-        return await answerWithLangChain(question, relevantChunks);
+        return await answerWithLangChain(question, chunks);
       }
     } catch (langchainError) {
       console.warn('LangChain failed, falling back to search results:', langchainError.message);
     }
 
-    // Fallback: return search results with Hugging Face embeddings
-    console.log('Using Hugging Face embeddings for document search');
-    let response = `Based on your documents, here are the most relevant sections:\n\n`;
-    relevantChunks.forEach((chunk, index) => {
-      response += `**${chunk.document.metadata.name}** (similarity: ${(chunk.similarity * 100).toFixed(1)}%)\n`;
-      response += `${chunk.text.substring(0, 200)}...\n\n`;
-    });
-    
-    response += `💡 *Using Hugging Face embeddings for semantic document search.*`;
-    return response;
+    // Fallback: return search results with Hugging Face embeddings or general response
+    if (chunks.length > 0) {
+      console.log('Using Hugging Face embeddings for document search');
+      let response = `Based on your documents, here are the most relevant sections:\n\n`;
+      chunks.forEach((chunk, index) => {
+        response += `**${chunk.document.metadata.name}** (similarity: ${(chunk.similarity * 100).toFixed(1)}%)\n`;
+        response += `${chunk.text.substring(0, 200)}...\n\n`;
+      });
+      
+      response += `💡 *Using Hugging Face embeddings for semantic document search.*`;
+      return response;
+    } else {
+      // No documents available, provide general response
+      return `I don't have any documents to search through yet. Please upload some files and I'll be able to help you analyze them!\n\n💡 *Upload documents to enable AI-powered document analysis.*`;
+    }
     
   } catch (error) {
     console.error('Error answering with context:', error);
