@@ -2,7 +2,7 @@
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/ragnarok-frontend)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-brightgreen)](https://frontend-gzu256n4z-jonyens-projects.vercel.app)
-[![Video Recording](https://app.airtimetools.com/recorder/s/z_JsT55LxjjX6Co8ds4sFG)
+[[Video Recording](https://app.airtimetools.com/recorder/s/z_JsT55LxjjX6Co8ds4sFG)
 
 > **Ragnarok** is an AI-powered document analysis chatbot that combines semantic search with large language models to provide intelligent Q&A over your documents. Upload files, ask questions, and get contextual answers powered by cutting-edge AI.
 
